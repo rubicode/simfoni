@@ -1,12 +1,12 @@
 # Implementasi Struktur DAG untuk Grup User di Simfoni v3 Primero
 
-Untuk mengubah model user group saat ini menjadi struktur Directed Acyclic Graph (DAG) dengan hubungan atasan-bawahan untuk penugasan dan pelaporan, saya akan menganalisis perubahan yang diperlukan dan dampaknya.
+Untuk mengubah model user group saat ini menjadi struktur Directed Acyclic Graph (DAG) dengan hubungan atasan-bawahan untuk penugasan dan pelaporan, ada beberapa perubahan yang perlu dilakukan dan dampaknya.
 
 ## Struktur Saat Ini vs Struktur DAG
 
 **Struktur Saat Ini:**
-- User group adalah entitas datar dengan hubungan many-to-many ke pengguna dan lembaga
-- Tidak ada hubungan hierarkis antar user group
+- User group adalah entitas datar dengan hubungan many-to-many ke user dan lembaga
+- Tidak ada hubungan hierarkis antar user group (tidak ada atasan maupun bawahan)
 - Penugasan berdasarkan keanggotaan grup, bukan hierarki
 
 **Struktur DAG yang Diusulkan:**
@@ -15,7 +15,7 @@ Untuk mengubah model user group saat ini menjadi struktur Directed Acyclic Graph
 - Alur penugasan mengalir ke bawah (atasan ke bawahan)
 - Alur pelaporan mengalir ke atas (bawahan ke atasan)
 - Setiap tugas menyimpan referensi ke atasan yang memberikan tugas
-- Mencegah ketergantungan melingkar (sifat asiklik)
+- Mencegah ketergantungan melingkar (sifat asiklik), ketergantungan melingkar terjadi ketika ada jalur hubungan yang membentuk lingkaran/siklus. Dalam konteks user group, jika ada atasan yang memiliki bawahan yang juga memiliki atasan yang sama, maka terjadi ketergantungan melingkar. Dalam contoh ini, A adalah atasan dari B, B adalah atasan dari C, dan C adalah atasan dari A. Ini membentuk siklus/lingkaran yang tidak boleh terjadi dalam DAG.
 
 ## Perubahan Database yang Dibutuhkan
 
@@ -55,24 +55,24 @@ Untuk mengubah model user group saat ini menjadi struktur Directed Acyclic Graph
    - `app/models/permission.rb` - Menambahkan izin baru untuk operasi hierarkis
 
 2. **Perubahan Controller (≈3 file):**
-   - `app/controllers/api/v2/user_groups_controller.rb` - Memperbarui untuk mendukung operasi hierarki
+   - `app/controllers/api/v2/user_groups_controller.rb` - perlu diperbaharui untuk mendukung operasi hierarki
    - `app/controllers/api/v2/tasks_controller.rb` - Menambahkan logika untuk penugasan hierarkis
-   - `app/controllers/api/v2/users_controller.rb` - Memperbarui filter berdasarkan hierarki
+   - `app/controllers/api/v2/users_controller.rb` - Perlu Memperbarui filter berdasarkan hierarki
 
 3. **Perubahan Database (≈2 file):**
    - Migrasi baru untuk tabel `user_group_hierarchies`
    - Migrasi untuk memperbarui izin dan indeks
 
 4. **Perubahan Frontend (≈6-8 file):**
-   - Komponen untuk visualisasi dan pengelolaan hierarki
+   - Komponen React untuk visualisasi dan pengelolaan hierarki
    - Formulir untuk membuat hubungan atasan-bawahan
-   - Antarmuka penugasan yang menghormati hierarki
+   - Antarmuka penugasan yang mengikuti hierarki
    - Tampilan pelaporan yang menunjukkan data hierarkis
 
-5. **Objek Layanan (≈3-4 file):**
-   - Layanan validasi DAG untuk mencegah siklus
-   - Layanan penugasan untuk menegakkan aliran atasan-ke-bawahan
-   - Layanan pelaporan untuk menegakkan aliran bawahan-ke-atasan
+5. **Error Handling (≈3-4 file):**
+   - validasi DAG untuk mencegah siklus
+   - Validasi penugasan untuk memastikan aliran atasan-ke-bawahan
+   - Validasi pelaporan untuk memastikan aliran bawahan-ke-atasan
 
 ## Logika Baru yang Diperlukan
 
@@ -132,11 +132,11 @@ Untuk mengubah model user group saat ini menjadi struktur Directed Acyclic Graph
 ## Fitur yang Terpengaruh
 
 1. **Manajemen User (Dampak Tinggi)**
-   - Logika penugasan grup harus menghormati hierarki
-   - Perhitungan izin akan menjadi lebih kompleks
+   - Logika penugasan grup harus mengikuti hierarki
+   - izin akses akan menjadi lebih kompleks
 
-2. **Penugasan Catatan (Dampak Tinggi)**
-   - Alur penugasan perlu menghormati hierarki
+2. **Catatan Penugasan (Dampak Tinggi)**
+   - Alur penugasan perlu mengikuti hierarki
    - UI baru diperlukan untuk menampilkan/memfilter berdasarkan hierarki
 
 3. **Pelaporan & Analitik (Dampak Menengah)**
@@ -144,12 +144,11 @@ Untuk mengubah model user group saat ini menjadi struktur Directed Acyclic Graph
    - Opsi agregasi baru untuk menyusun data berdasarkan hierarki
 
 4. **Pencarian & Filter (Dampak Menengah)**
-   - Pencarian akan membutuhkan filter yang sadar hierarki
-   - Izin hasil akan bergantung pada posisi hierarki
+   - Pencarian akan membutuhkan filter yang mengikuti hierarki
+   - Izin akses hasil akan bergantung pada posisi jabatan di hierarki
 
 5. **Otorisasi (Dampak Tinggi)**
-   - Sistem izin akan membutuhkan kesadaran hierarki
-   - Izin dapat mengalir turun dalam hierarki
+   - Izin Akses dapat mengalir turun dalam hierarki
 
 6. **Endpoint API (Dampak Menengah)**
    - Endpoint baru untuk manajemen hierarki
@@ -160,13 +159,13 @@ Untuk mengubah model user group saat ini menjadi struktur Directed Acyclic Graph
 - **File yang Diubah:** Sekitar 18-22 file
 - **File Baru yang Dibuat:** Sekitar 3-5 file
 - **Fitur yang Terpengaruh:** 6 fitur inti dengan tingkat dampak yang bervariasi
-- **Perkiraan Usaha:** Menengah-Tinggi (memerlukan perencanaan dan pengujian yang cermat)
+- **Perkiraan Beban Kerja:** Tinggi (memerlukan perencanaan dan pengujian yang cermat)
 
 ## Tantangan Implementasi
 
-1. **Mempertahankan Properti DAG**: Memastikan tidak ada siklus yang diperkenalkan saat membangun hubungan
-2. **Masalah Kinerja**: Kueri hierarkis dapat mahal; mungkin perlu optimasi
-3. **Kompleksitas Izin**: Model izin menjadi jauh lebih kompleks
-4. **Strategi Migrasi**: Data yang ada akan membutuhkan strategi untuk membangun hierarki awal
+1. **Mempertahankan Properti DAG**: Memastikan tidak ada siklus yang dilarang saat membangun sistem ini
+2. **Masalah Kinerja**: Query hierarkis akan menjadi berat dan perlu untuk di-optimasi
+3. **Kompleksitas Izin Akses**: Model izin akses menjadi jauh lebih kompleks
+4. **Strategi Migrasi**: Data yang ada akan membutuhkan strategi untuk persiapaan data awal
 5. **Pelacakan Atasan Pemberi Tugas**: Mengembangkan mekanisme yang melacak atasan mana yang memberikan tugas tertentu, terutama ketika bawahan memiliki beberapa atasan
-6. **Manajemen Konflik**: Membuat mekanisme untuk menangani konflik ketika beberapa atasan memberikan tugas yang bertentangan kepada bawahan yang sama
+6. **Manajemen Konflik**: Membuat mekanisme untuk menangani konflik ketika beberapa atasan memberikan tugas kepada bawahan yang sama
